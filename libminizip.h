@@ -31,7 +31,6 @@
 
     typedef struct {
         FILE *stream;
-        uint32_t offset;
         mzip_file_t **files;
         uint16_t number_files;
         uint32_t cdfs_offset;

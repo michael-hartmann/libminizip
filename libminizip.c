@@ -13,7 +13,6 @@
 
 static size_t zip_fwrite(mzip_t *zip, const void *ptr, size_t size)
 {
-    zip->offset += size;
     return fwrite(ptr, size, 1, zip->stream);
 }
 
@@ -36,7 +35,7 @@ int mzip_file_add(mzip_t *zip, const char *filename)
 
     file = zip->files[zip->number_files-1];
 
-    file->offset             = zip->offset;
+    file->offset             = ftell(zip->stream);
     file->version            = MZIP_VERSION;
     file->version_min        = MZIP_VERSION;
     file->gpbit_flag         = 0x08;
@@ -97,7 +96,6 @@ int mzip_create(mzip_t *zip, const char *filename)
 {
     zip->files = NULL;
     zip->number_files = 0;
-    zip->offset = 0;
     zip->stream = fopen(filename, "w");
 
     if(zip->stream == NULL)
@@ -114,7 +112,7 @@ void mzip_cdfs(mzip_t *zip)
     uint16_t attrs_internal = 0;
     uint32_t attrs_external = 0;
 
-    zip->cdfs_offset = zip->offset;
+    zip->cdfs_offset = ftell(zip->stream);
     for(i = 0; i < zip->number_files; i++)
     {
         mzip_file_t *file = zip->files[i];
@@ -152,7 +150,7 @@ int mzip_close(mzip_t *zip)
     uint32_t eocd_signature      = MZIP_EOCD_SIGNATURE;
     uint16_t number_of_this_disk = 0;
     uint16_t disk_of_cdfs        = 0;
-    uint32_t cdfs_size           = zip->offset - zip->cdfs_offset;
+    uint32_t cdfs_size           = ftell(zip->stream) - zip->cdfs_offset;
     uint16_t comment_len         = strlen(MZIP_COMMENT);
 
     zip_fwrite(zip, &eocd_signature,      4);
@@ -203,17 +201,25 @@ void zip_free(mzip_t *zip)
 int main(int argc, char *argv[])
 {
     mzip_t zip;
-    char file1[] = "Hallo Welt";
-    char file2[] = "und gute Nacht...";
+    char content[] = "Computerworld";
 
     mzip_create(&zip, "mzip.zip");
 
+
     mzip_file_add(&zip, "datei1.txt");
-    mzip_file_write(&zip, file1, strlen(file1));
+    mzip_file_write(&zip, content, strlen(content));
     mzip_file_close(&zip);
 
-    mzip_file_add(&zip, "datei2.txt");
-    mzip_file_write(&zip, file2, strlen(file2));
+    mzip_file_add(&zip, "libminizip.c");
+    FILE *fh = fopen("libminizip.c", "r");
+    while(!feof(fh))
+    {
+        char buffer[128];
+        size_t size = fread(buffer, sizeof(char), 128, fh);
+        mzip_file_write(&zip, buffer, size);
+    }
+    fclose(fh);
+
     mzip_file_close(&zip);
 
     mzip_close(&zip);
